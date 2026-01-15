@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+	<head>
+		<title>预览模型</title>
+		<meta charset="utf-8" />
+		<meta
+			name="viewport"
+			content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no"
+		/>
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta
+			name="apple-mobile-web-app-status-bar-style"
+			content="black-translucent"
+		/>
+		<style>
+			body {
+				overflow: hidden;
+				margin: 0;
+				height: 100vh;
+				width: 100vw;
+				font-family: sans-serif;
+				background: black;
+    			text-shadow: 0 0 3px black;
+			}
+			a, body {
+				color: white;
+			}
+			#info {
+				z-index: 100;
+				position: absolute;
+				top: 10px;
+				left: 15px;
+			}
+			h3 {
+				margin: 5px 0;
+			}
+			p {
+				margin: 5px 0;
+				font-size: small;
+			}
+
+			.cube-wrapper {
+				transform-style: preserve-3d;
+			}
+
+			.cube {
+				transform-style: preserve-3d;
+				transform: rotateX(45deg) rotateZ(45deg);
+				animation: rotation 2s infinite;
+			}
+
+			.cube-faces {
+				transform-style: preserve-3d;
+				height: 80px;
+				width: 80px;
+				position: relative;
+				transform-origin: 0 0;
+				transform: translateX(0) translateY(0) translateZ(-40px);
+			}
+
+			.cube-face {
+				position: absolute;
+				inset: 0;
+				background: #0017ff;
+				border: solid 1px #ffffff;
+			}
+			.cube-face.top {
+				transform: translateZ(80px);
+			}
+			.cube-face.front {
+				transform-origin: 0 50%;
+				transform: rotateY(-90deg);
+			}
+			.cube-face.back {
+				transform-origin: 0 50%;
+				transform: rotateY(-90deg) translateZ(-80px);
+			}
+			.cube-face.right {
+				transform-origin: 50% 0;
+				transform: rotateX(-90deg) translateY(-80px);
+			}
+			.cube-face.left {
+				transform-origin: 50% 0;
+				transform: rotateX(-90deg) translateY(-80px) translateZ(80px);
+			}
+
+			@keyframes rotation {
+				0% {
+					transform: rotateX(45deg) rotateY(0) rotateZ(45deg);
+					animation-timing-function: cubic-bezier(
+						0.17,
+						0.84,
+						0.44,
+						1
+					);
+				}
+				50% {
+					transform: rotateX(45deg) rotateY(0) rotateZ(225deg);
+					animation-timing-function: cubic-bezier(
+						0.76,
+						0.05,
+						0.86,
+						0.06
+					);
+				}
+				100% {
+					transform: rotateX(45deg) rotateY(0) rotateZ(405deg);
+					animation-timing-function: cubic-bezier(
+						0.17,
+						0.84,
+						0.44,
+						1
+					);
+				}
+			}
+
+			.scene,
+			#message {
+				position: absolute;
+				display: flex;
+				top: 0;
+				right: 0;
+				left: 0;
+				bottom: 0;
+				z-index: 2;
+				height: 100%;
+				width: 100%;
+				align-items: center;
+				justify-content: center;
+			}
+			#message {
+				font-weight: bold;
+				font-size: large;
+				color: red;
+				pointer-events: none;
+			}
+
+			details {
+				font-size: small;
+
+			}
+
+            #model-selector {
+                position: absolute;
+                top: 10px;
+                left: 10px;
+                z-index: 100;
+                color: white;
+                background: rgba(0,0,0,0.5);
+                padding: 10px;
+                border-radius: 5px;
+            }
+        
+            #file-selector {
+                margin-bottom: 10px;
+            }
+
+			#progress {
+				position: absolute;
+				top: 0;
+				height: 5px;
+				background: blue;
+				z-index: 99;
+				transition: width 0.1s ease-in-out;
+			}
+
+			#quality {
+				position: absolute;
+				bottom: 10px;
+				z-index: 999;
+				right: 10px;
+			}
+
+			#caminfo {
+				position: absolute;
+				top: 10px;
+				z-index: 999;
+				right: 10px;
+			}
+			#canvas {
+				display: block;
+				position: absolute;
+				top: 0;
+				left: 0;
+				width: 100%;
+				height: 100%;
+				touch-action: none;
+			}
+
+			#instructions {
+				background: rgba(0,0,0,0.6);
+				white-space: pre-wrap;
+				padding: 10px;
+				border-radius: 10px;
+				font-size: x-small;
+			}
+			body.nohf .nohf {
+				display: none;
+			}
+			body.nohf #progress, body.nohf .cube-face {
+				background: #ff9d0d;
+			}
+
+			#resetCameraBtn {
+				position: absolute;
+				top: 10px; /* 距离顶部10px */
+				left: 50%; /* 水平居中核心：先定位到页面水平中点 */
+				transform: translateX(-50%); /* 向左偏移自身50%宽度，实现真正居中 */
+				z-index: 100; /* 保证按钮在顶层不被遮挡 */
+				background: rgba(0,0,0,0);
+				color: #fff;
+				border: 1px solid #ffffff;
+				border-radius: 4px;
+				padding: 5px 10px;
+				font-size: 12px;
+				cursor: pointer;
+				transition: background 0.2s;
+			}
+			#resetCameraBtn:hover {
+				background: rgba(50,50,50,0.8);
+			}
+		</style>
+	</head>
+	<body>
+		<script>
+			if(location.host.includes('hf.space')) document.body.classList.add('nohf');
+		</script>
+
+		<div id="info">
+			<details>
+				<summary>操作说明</summary>
+				<div id="instructions">
+- 单指拖动：相机环绕旋转
+- 双指捏合/张开：向前/向后移动视角
+- 双指旋转(两根手指绕圆心转动)：相机顺时针/逆时针旋转
+- 双指平移(同时向同一方向滑动）：向左右/上下移动视角
+- 点击右下角箭头返回文件列表
+				</div>
+			</details>
+		</div>
+
+		<button id="resetCameraBtn">重置视角</button>
+
+		<div id="progress"></div>
+
+		<div id="message"></div>
+		<div class="scene" id="spinner">
+			<div class="cube-wrapper">
+				<div class="cube">
+					<div class="cube-faces">
+						<div class="cube-face bottom"></div>
+						<div class="cube-face top"></div>
+						<div class="cube-face left"></div>
+						<div class="cube-face right"></div>
+						<div class="cube-face back"></div>
+						<div class="cube-face front"></div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<canvas id="canvas"></canvas>
+
+		<div id="quality">
+			<span id="fps"></span>
+		</div>
+		<div id="caminfo">
+			<span id="camid"></span>
+		</div>
+		<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+        <script>
+            
+            let currentModelBuffer = null;
+            let currentModelName = '';
+			
+			// 接收小程序传递的模型参数并加载
+            function loadModelFromMiniProgram(modelFileName) {
+                if (!modelFileName) return;
+                console.log('从小程序加载模型:', modelFileName);
+                // 调用 main.js 的加载方法
+                if (window.loadModelByFileName) {
+                    window.loadModelByFileName(modelFileName);
+                } else {
+                    console.error('加载模型方法未定义');
+                    alert('模型加载失败：核心加载方法未找到');
+                }
+            }
+
+            // 监听小程序的 postMessage 消息（微信小程序通信方式）
+            document.addEventListener('message', function(e) {
+                const data = e.data;
+                if (data.type === 'loadModel' && data.modelFileName) {
+                    loadModelFromMiniProgram(data.modelFileName);
+                }
+            });
+           
+            // 页面加载完成后初始化
+            window.addEventListener('load', () => {
+
+				// 获取回正按钮元素
+				const resetCameraBtn = document.getElementById('resetCameraBtn');
+				if (resetCameraBtn) {
+					// 绑定点击事件：模拟数字键0的按下+松开
+					resetCameraBtn.addEventListener('click', () => {
+						// 模拟按键按下（keydown）
+						const keydownEvent = new KeyboardEvent('keydown', {
+							key: '0',
+							code: 'Digit0',
+							keyCode: 48, // 数字0的keyCode
+							which: 48,
+							bubbles: true, // 事件冒泡，确保能被main.js捕获
+							cancelable: true
+						});
+						// 模拟按键松开（keyup）
+						const keyupEvent = new KeyboardEvent('keyup', {
+							key: '0',
+							code: 'Digit0',
+							keyCode: 48,
+							which: 48,
+							bubbles: true,
+							cancelable: true
+						});
+
+						// 触发canvas的按键事件（确保和交互上下文一致）
+						const canvas = document.getElementById('canvas');
+						canvas.dispatchEvent(keydownEvent);
+						canvas.dispatchEvent(keyupEvent);
+
+						// 同时触发document的按键事件（兜底兼容）
+						document.dispatchEvent(keydownEvent);
+						document.dispatchEvent(keyupEvent);
+						
+						this.blur();
+						console.log('模拟点击数字键0，相机已回正');
+					});
+				}
+
+
+                const params = new URLSearchParams(window.location.search);
+                const modelName = params.get('model');
+                if (modelName) {
+                    loadModelFromMiniProgram(modelName);
+                }
+                // 让canvas可聚焦，保证交互
+                document.getElementById('canvas').focus();
+            });
+        </script>
+	</body>
+</html>

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模型管理 - 3D高斯溅射系统</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:#f5f7fa; color:#333; }
+        .navbar { background:white; padding:15px 30px; box-shadow:0 2px 10px rgba(0,0,0,0.1); display:flex; justify-content:space-between; align-items:center; }
+        .logo h1 { font-size:20px; color:#333; }
+        .user-info{display:flex;gap:12px;align-items:center;color:var(--muted)}
+        .btn-logout{background:transparent;border:1px solid rgba(15,23,42,0.06);padding:8px 12px;border-radius:8px;cursor:pointer;color:var(--muted)}
+        .container { max-width:1100px; margin:30px auto; padding:0 20px; }
+        .panel { background:white; padding:30px; border-radius:10px; box-shadow:0 5px 20px rgba(0,0,0,0.06); }
+        h2 { margin-bottom:16px; }
+        .models-list { margin-top:12px; }
+        .model-item { display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #f0f0f0; }
+        .model-item a { color:#2366d1; text-decoration:none; font-weight:600; }
+        .model-actions { display:flex; gap:8px; }
+        .btn-view { padding:8px 12px; background:linear-gradient(135deg,#ff7b00,#ff6a00); color:#fff; border:none; border-radius:6px; cursor:pointer; display: none !important; }
+        .btn-rename { padding:8px 12px; background:linear-gradient(90deg,#ff6a00,#ff3d00); color:#fff; border:none; border-radius:6px; cursor:pointer; box-shadow:0 6px 18px rgba(255,95,0,0.18); }
+        .name-input { padding:6px 8px; font-size:14px; border:1px solid #ddd; border-radius:4px; width:320px; }
+        .btn-save, .btn-cancel { padding:6px 10px; border-radius:6px; border:1px solid #ddd; background:#fff; cursor:pointer; }
+        .btn-save { background:linear-gradient(135deg,#48c774,#3ec46d); color:#fff; border:none; }
+        .btn-cancel { margin-left:6px; }
+        .btn-delete{ padding:8px 12px; background:#fff; color:#333; border:1px solid #ddd; border-radius:6px; cursor:pointer; }
+        .no-models { text-align:center; color:#888; padding:40px 0; }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <div class="logo"><h1>模型管理</h1></div>
+        <div class="user-info">
+            <span>欢迎, {{ username }}</span>
+            <button class="btn-logout" onclick="logout()">退出登录</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="panel">
+            <h2>可用模型文件</h2>
+            <div id="modelsContainer" class="models-list">
+                <div class="no-models">加载中...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function logout(){ window.location.href = '/logout'; }
+
+        async function loadModels(){
+            try{
+                const res = await fetch('/models/', { credentials: 'same-origin' });
+                const data = await res.json();
+                const container = document.getElementById('modelsContainer');
+                container.innerHTML = '';
+                if(!data.success || !data.models || data.models.length === 0){
+                    container.innerHTML = '<div class="no-models">当前没有模型</div>';
+                    return;
+                }
+
+                data.models.forEach(rel => {
+                    const item = document.createElement('div');
+                    item.className = 'model-item';
+
+                    const displayName = rel.split('/').pop();
+                    const link = document.createElement('a');
+                    link.href = `/viewer?model=${encodeURIComponent(rel)}`;
+                    link.target = '_blank';
+                    link.textContent = displayName;
+
+                    // mutable reference for closures (stores relpath)
+                    let modelName = rel;
+
+                    const actions = document.createElement('div');
+                    actions.className = 'model-actions';
+
+                    const btnView = document.createElement('button');
+                    btnView.className = 'btn-view';
+                    btnView.textContent = '查看';
+                    btnView.onclick = () => window.open(`/viewer?model=${encodeURIComponent(rel)}`,'_blank');
+
+                    const btnRename = document.createElement('button');
+                    btnRename.className = 'btn-rename';
+                    btnRename.textContent = '重命名';
+                    btnRename.onclick = () => {
+                        // switch to inline edit mode
+                        const wasRel = modelName; // relpath
+                        const wasName = wasRel.split('/').pop();
+                        // determine base name without extension (handle .ply.gz)
+                        const lower = wasName.toLowerCase();
+                        let base = wasName;
+                        if (lower.endsWith('.ply.gz')) base = wasName.slice(0, -7);
+                        else base = wasName.replace(/\.[^.]+$/, '');
+
+                        // create input and buttons
+                        const nameWrapper = document.createElement('span');
+                        const input = document.createElement('input');
+                        input.className = 'name-input';
+                        input.value = base;
+                        const saveBtn = document.createElement('button');
+                        saveBtn.className = 'btn-save';
+                        saveBtn.textContent = '保存';
+                        const cancelBtn = document.createElement('button');
+                        cancelBtn.className = 'btn-cancel';
+                        cancelBtn.textContent = '取消';
+
+                        nameWrapper.appendChild(input);
+                        nameWrapper.appendChild(saveBtn);
+                        nameWrapper.appendChild(cancelBtn);
+
+                        // replace link with input wrapper
+                        item.replaceChild(nameWrapper, link);
+
+                        // focus and select
+                        input.focus();
+                        input.select();
+
+                        const restoreView = (newRel) => {
+                            // remove wrapper and restore link; newRel is relpath
+                            modelName = newRel || modelName;
+                            const display = (modelName || '').split('/').pop();
+                            link.href = `/viewer?model=${encodeURIComponent(modelName)}`;
+                            link.textContent = display;
+                            item.replaceChild(link, nameWrapper);
+                        };
+
+                        cancelBtn.onclick = () => { restoreView(wasName); };
+
+                        saveBtn.onclick = async () => {
+                            const v = (input.value || '').trim();
+                            if (!v) { alert('名称不能为空'); input.focus(); return; }
+                            if (v.indexOf('/') !== -1 || v.indexOf('\\') !== -1) { alert('名称不能包含斜杠'); input.focus(); return; }
+                            // send rename request (backend will append original extension)
+                            try {
+                                const resp = await fetch('/manager/rename', {
+                                    method: 'POST',
+                                    credentials: 'same-origin',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ old_name: wasRel, new_name: v })
+                                });
+                                const j = await resp.json();
+                                if (j.status === 'success'){
+                                        restoreView(j.new_name);
+                                } else {
+                                    alert('重命名失败: ' + (j.message || 'Unknown'));
+                                }
+                            } catch (err) {
+                                console.error(err);
+                                alert('重命名请求失败');
+                            }
+                        };
+                    };
+
+                    const btnDelete = document.createElement('button');
+                    btnDelete.className = 'btn-delete';
+                    btnDelete.textContent = '删除';
+                    btnDelete.onclick = async () => {
+                        if(!confirm(`确定删除模型 ${modelName.split('/').pop()} 吗？`)) return;
+                        try{
+                            const resp = await fetch(`/manager/delete/${encodeURIComponent(modelName)}`, { method: 'POST', credentials: 'same-origin' });
+                            const j = await resp.json();
+                            if(j.status === 'success'){
+                                item.remove();
+                                // if list becomes empty
+                                if(document.querySelectorAll('.model-item').length === 0){
+                                    document.getElementById('modelsContainer').innerHTML = '<div class="no-models">当前没有模型</div>';
+                                }
+                            } else {
+                                alert('删除失败: ' + (j.message || 'Unknown'));
+                            }
+                        }catch(err){ console.error(err); alert('删除失败'); }
+                    };
+
+                    actions.appendChild(btnView);
+                    actions.appendChild(btnRename);
+                    actions.appendChild(btnDelete);
+
+                    item.appendChild(link);
+                    item.appendChild(actions);
+                    container.appendChild(item);
+                });
+
+            }catch(e){
+                console.error(e);
+                document.getElementById('modelsContainer').innerHTML = '<div class="no-models">加载失败</div>';
+            }
+        }
+
+        window.addEventListener('load', loadModels);
+    </script>
+</body>
+</html>

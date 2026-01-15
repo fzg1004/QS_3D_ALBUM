@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图像重建 - 3D高斯溅射系统</title>
+    <style>
+        :root{
+            --bg: #F7FAFC;
+            --card: #FFFFFF;
+            --muted: #6B7280;
+            --accent: #2563EB; /* blue */
+            --accent-2: #10B981; /* green */
+            --danger: #EF4444;
+            --radius: 10px;
+            --max-width: 1100px;
+            --shadow: 0 6px 24px rgba(15,23,42,0.06);
+        }
+
+        *{box-sizing:border-box;margin:0;padding:0}
+        html,body{height:100%}
+        body{
+            font-family: Inter, 'Segoe UI', Roboto, system-ui, -apple-system, 'Helvetica Neue', Arial;
+            background:var(--bg);
+            color:#111827;
+            -webkit-font-smoothing:antialiased;
+            -moz-osx-font-smoothing:grayscale;
+        }
+
+        .navbar{background:var(--card);padding:14px 24px;border-bottom:1px solid rgba(15,23,42,0.04);display:flex;align-items:center;justify-content:space-between;box-shadow:var(--shadow)}
+        .logo h1{font-size:18px;color:#0f172a}
+        .user-info{display:flex;gap:12px;align-items:center;color:var(--muted)}
+        .btn-logout{background:transparent;border:1px solid rgba(15,23,42,0.06);padding:8px 12px;border-radius:8px;cursor:pointer;color:var(--muted)}
+
+        .container{max-width:var(--max-width);margin:28px auto;padding:0 20px}
+
+        .upload-section{background:var(--card);padding:28px;border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:22px}
+        .upload-section h2{font-size:20px;margin-bottom:6px}
+        .upload-section p{color:var(--muted);margin-bottom:18px}
+
+        .upload-area{border:2px dashed rgba(15,23,42,0.06);border-radius:8px;padding:36px 18px;text-align:center;cursor:pointer;background:linear-gradient(180deg, rgba(255,255,255,0.6), transparent)}
+        .upload-area.dragover{border-color:var(--accent-2);background:rgba(16,185,129,0.03)}
+
+        .upload-icon{width:56px;height:56px;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;border-radius:12px;background:linear-gradient(180deg,rgba(37,99,235,0.1),rgba(16,185,129,0.06));color:var(--accent)}
+        .upload-text h3{font-size:16px;margin-bottom:6px}
+        .upload-text p{color:var(--muted);font-size:13px}
+
+        .file-input{display:none}
+
+        .btn-upload{padding:10px 18px;background:var(--accent);color:white;border-radius:8px;border:none;cursor:pointer;font-weight:600}
+        .btn-upload[disabled]{opacity:.5;cursor:not-allowed}
+
+        .selected-files{margin-top:16px;display:none}
+        .selected-files.show{display:block}
+        .files-list{max-height:180px;overflow:auto;border-radius:8px;border:1px solid rgba(15,23,42,0.04);padding:8px;background:linear-gradient(180deg, #fff, #fbfdff)}
+        .file-item{display:flex;gap:12px;align-items:center;padding:8px;border-radius:6px}
+        .file-info{display:flex;align-items:center;gap:12px;flex:1}
+        .file-preview{width:72px;height:72px;border-radius:6px;object-fit:cover;background:#f3f4f6;flex:0 0 72px}
+        .file-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .file-size{display:none}
+
+        .upload-actions{display:flex;justify-content:flex-end;align-items:center;margin-top:18px;gap:12px}
+        .button-group{display:flex;gap:10px}
+        .btn-start{background:linear-gradient(90deg,var(--accent),#1E40AF);color:#fff;padding:10px 18px;border-radius:8px;border:none;cursor:pointer;font-weight:600}
+        .btn-clear{background:transparent;border:1px solid rgba(15,23,42,0.06);padding:10px 14px;border-radius:8px;cursor:pointer}
+
+        /* Upload stats: place items inline with compact values */
+        .upload-stats{margin-top:12px;display:flex;gap:28px;align-items:center;flex-wrap:wrap}
+        .upload-stats .stat-item{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:6px}
+        .upload-stats .stat-label{color:var(--muted);font-size:13px;white-space:nowrap}
+        .upload-stats .stat-value{font-size:15px;font-weight:700;color:#0f172a}
+        /* make these two values slightly smaller */
+        #statSize,#statResolution{font-size:13px;font-weight:600;color:#111827}
+
+        .progress-section{margin-top:20px}
+        .progress-bar{height:12px;background:rgba(15,23,42,0.06);border-radius:999px;overflow:hidden}
+        .progress-fill{height:100%;background:linear-gradient(90deg,var(--accent-2),var(--accent));width:0%;transition:width .3s}
+
+        .status-log{margin-top:12px;padding:12px;border-radius:8px;background:#fbfdff;border:1px solid rgba(15,23,42,0.03);max-height:160px;overflow:auto}
+
+        .models-section{background:var(--card);padding:18px;border-radius:var(--radius);box-shadow:var(--shadow);display:flex;justify-content:space-between;align-items:center}
+        .models-section h2{margin:0}
+        .btn-viewer{background:linear-gradient(90deg,#ff6a00,#ff3d00);color:#fff;padding:8px 14px;border-radius:8px;border:none;cursor:pointer;box-shadow:0 6px 18px rgba(255,95,0,0.18)}
+        .btn-manager{background:transparent;border:1px solid rgba(15,23,42,0.06);padding:8px 12px;border-radius:8px}
+
+        @media (max-width:720px){.upload-area{padding:22px}.container{padding:0 12px}.upload-actions{flex-direction:column;align-items:stretch}}
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <div class="logo">
+            <h1>图像3D重建</h1>
+        </div>
+        <div class="user-info">
+            <span>欢迎, {{ username }}</span>
+            <button class="btn-logout" onclick="logout()">退出登录</button>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="upload-section">
+            <h2>上传单张图像</h2>
+            <p>上传1张图像，系统将通过算法进行3D重建</p>
+            
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">🖼️</div>
+                <div class="upload-text">
+                    <h3>点击或拖拽上传图像</h3>
+                    <p>支持 JPG, PNG, JPEG 格式，最大30MB</p>
+                    <button class="btn-upload" onclick="document.getElementById('fileInput').click()">
+                        选择文件
+                    </button>
+                </div>
+            </div>
+            
+            <input type="file" id="fileInput" class="file-input" accept=".jpg,.jpeg,.png" onchange="handleFileSelect(event)">
+
+            <div class="selected-files" id="selectedFiles">
+                <h4>已选择文件</h4>
+                <div class="files-list" id="filesList">
+                    <div class="no-files">暂无文件</div>
+                </div>
+            </div>
+            
+            <div class="upload-stats" id="uploadStats">
+                <div class="stat-item">
+                    <div class="stat-label">图像大小</div>
+                    <div class="stat-value" id="statSize">0 MB</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">分辨率</div>
+                    <div class="stat-value" id="statResolution">-</div>
+                </div>
+            </div>
+            
+            <div class="progress-section" id="progressSection">
+                <div class="progress-title">
+                    <span>处理进度</span>
+                    <span id="progressPercent">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-message" id="progressMessage">等待开始...</div>
+                
+                <div class="status-log" id="statusLog"></div>
+            </div>
+            
+            <div class="upload-actions">
+                <div class="button-group">
+                    <button class="btn-start" id="btnStartProcess" onclick="startProcessing()" disabled>
+                        开始3D重建
+                    </button>
+                    <button class="btn-upload" id="btnClearFiles" onclick="clearAllFiles()" style="display: none;">
+                        清空文件
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="models-section">
+            <button class="btn-viewer" id="btnViewer" onclick="openViewer()">
+                查看我的模型
+            </button>
+            <button class="btn-upload" id="btnManager" onclick="ManagerViewer()">
+                管理我的模型
+            </button>
+        </div>
+    </div>
+    
+    <script>
+        let selectedFiles = [];
+        let currentTaskId = null;
+        let statusInterval = null;
+        let imagePreviews = new Map();
+        let isProcessing = false;
+        
+        // DOM元素
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const filesList = document.getElementById('filesList');
+        const selectedFilesDiv = document.getElementById('selectedFiles');
+        const btnStartProcess = document.getElementById('btnStartProcess');
+        const btnViewer = document.getElementById('btnViewer');
+        const btnClearFiles = document.getElementById('btnClearFiles');
+        
+        // 拖拽上传功能
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            
+            if (e.dataTransfer.files.length) {
+                handleFiles(e.dataTransfer.files);
+            }
+        });
+        
+        uploadArea.addEventListener('click', (e) => {
+            if (e.target.className !== 'btn-upload') {
+                fileInput.click();
+            }
+        });
+        
+        function handleFiles(fileList) {
+            // 只允许上传1张图片，清除之前的文件
+            selectedFiles = [];
+            imagePreviews.clear();
+            
+            const file = fileList[0];
+            if (!file) return;
+            
+            // 检查文件类型
+            const isImage = file.type.startsWith('image/') || 
+                          file.name.match(/\.(jpg|jpeg|png)$/i);
+            
+            // 检查文件大小（30MB限制）
+            const isSizeValid = file.size <= 30 * 1024 * 1024;
+            
+            if (!isImage) {
+                alert('请选择图像文件（JPG, PNG, JPEG格式）');
+                return;
+            }
+            
+            if (!isSizeValid) {
+                alert('文件太大，请选择小于30MB的图像');
+                return;
+            }
+            
+            selectedFiles.push(file);
+            createImagePreview(file);
+            
+            updateFileList();
+            updateStats();
+            updateButtons();
+        }
+        
+        function handleFileSelect(event) {
+            handleFiles(event.target.files);
+            // 重置file input以便可以再次选择相同文件
+            event.target.value = '';
+        }
+        
+        function createImagePreview(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    imagePreviews.set(file.name, {
+                        dataUrl: e.target.result,
+                        width: img.width,
+                        height: img.height
+                    });
+                    updateStats();
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        function updateFileList() {
+            if (selectedFiles.length === 0) {
+                filesList.innerHTML = '<div class="no-files">暂无文件</div>';
+                selectedFilesDiv.classList.remove('show');
+                btnClearFiles.style.display = 'none';
+                return;
+            }
+            
+            filesList.innerHTML = '';
+            selectedFilesDiv.classList.add('show');
+            btnClearFiles.style.display = 'inline-block';
+            
+            selectedFiles.forEach((file, index) => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                
+                const previewInfo = imagePreviews.get(file.name);
+                const previewSrc = previewInfo ? previewInfo.dataUrl : '';
+                
+                fileItem.innerHTML = `
+                    <div class="file-info">
+                        ${previewSrc ? `<img class="file-preview" src="${previewSrc}" alt="预览">` : '<div class="file-preview"></div>'}
+                        <div class="file-meta">
+                            <div class="file-name" title="${file.name}">${file.name}</div>
+                        </div>
+                    </div>
+                    <button class="remove-file" onclick="removeFile(${index})">移除</button>
+                `;
+                
+                filesList.appendChild(fileItem);
+            });
+        }
+        
+        function updateStats() {
+            if (selectedFiles.length === 0) {
+                document.getElementById('statSize').textContent = '0 MB';
+                document.getElementById('statResolution').textContent = '-';
+                return;
+            }
+            
+            const file = selectedFiles[0];
+            document.getElementById('statSize').textContent = formatFileSize(file.size);
+            
+            const preview = imagePreviews.get(file.name);
+            if (preview && preview.width && preview.height) {
+                document.getElementById('statResolution').textContent = `${preview.width}×${preview.height}`;
+            }
+        }
+        
+        function updateButtons() {
+            if(selectedFiles.length > 0){
+                btnStartProcess.disabled = false;
+                console.log("select files yes");
+            }else {
+                btnStartProcess.disabled = true;
+                console.log("select files no");
+            }
+            
+            
+            // 处理过程中禁用，否则启用
+           if(isProcessing){
+                btnViewer.title = "正在处理中，请稍候...";
+                btnViewer.disabled = true;
+           }else{
+                btnViewer.classList.add('show');
+                btnViewer.disabled = false; 
+                btnViewer.title = "跳转到3D查看器查看模型";
+           }
+            
+        }
+        
+        function removeFile(index) {
+            const removedFile = selectedFiles[index];
+            selectedFiles.splice(index, 1);
+            imagePreviews.delete(removedFile.name);
+            updateFileList();
+            updateStats();
+            updateButtons();
+        }
+        
+        function clearAllFiles() {
+            if (selectedFiles.length > 0) {
+                if (confirm('确定要移除文件吗？')) {
+                    selectedFiles = [];
+                    imagePreviews.clear();
+                    updateFileList();
+                    updateStats();
+                    updateButtons();
+                }
+            }
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        async function startProcessing() {
+            if (selectedFiles.length === 0) {
+                alert('请先选择文件');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('image', selectedFiles[0]);
+            
+            try {
+                isProcessing = true;
+                btnStartProcess.disabled = true;
+                document.getElementById('progressSection').classList.add('show');
+                
+                addStatusLog('开始上传图像...');
+                
+                const response = await fetch('/sharp/images', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    addStatusLog('上传成功，开始3D重建...');
+                    currentTaskId = data.task_id;
+                    startStatusPolling();
+                } else {
+                    alert('上传失败: ' + data.message);
+                    btnStartProcess.disabled = false;
+                    addStatusLog('上传失败: ' + data.message);
+                }
+                
+            } catch (error) {
+                console.error('上传错误:', error);
+                alert('上传失败，请检查网络连接');
+                btnStartProcess.disabled = false;
+                addStatusLog('上传失败: ' + error.message);
+            }
+        }
+        
+        function startStatusPolling() {
+            if (statusInterval) {
+                clearInterval(statusInterval);
+            }
+            
+            statusInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/sharp/status/${currentTaskId}`);
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        updateProgress(data.task);
+                    } else {
+                        console.error('获取状态失败:', data.message);
+                        addStatusLog('获取状态失败: ' + data.message);
+                    }
+                } catch (error) {
+                    console.error('轮询错误:', error);
+                    addStatusLog('轮询错误: ' + error.message);
+                }
+            }, 3000);
+        }
+        
+        function updateProgress(task) {
+            const progressPercent = task.progress || 0;
+            const status = task.status;
+            const message = task.message || '';
+            
+            document.getElementById('progressPercent').textContent = progressPercent + '%';
+            document.getElementById('progressFill').style.width = progressPercent + '%';
+            document.getElementById('progressMessage').textContent = message;
+            
+            if (message) {
+                addStatusLog(message);
+            }
+            
+            updateStatusColor(status);
+            
+            if (status === 'completed') {
+                clearInterval(statusInterval);
+                btnStartProcess.disabled = true;
+                isProcessing = false;
+                if (task.result) {
+                    btnViewer.disabled = false;
+                    btnViewer.classList.add('show');
+                    addStatusLog('3D重建完成！点击按钮可以查看模型。');
+                    
+                    setTimeout(() => {
+                        alert('3D重建已完成！点击"查看3D模型"按钮查看结果。');
+                    }, 500);
+                }
+            } else if (status === 'failed') {
+                clearInterval(statusInterval);
+                btnStartProcess.disabled = false;
+                isProcessing = false;
+                addStatusLog('处理失败: ' + message);
+                alert('处理失败: ' + message);
+            }
+        }
+        
+        function updateStatusColor(status) {
+            const progressFill = document.getElementById('progressFill');
+            
+            switch (status) {
+                case 'uploading':
+                    progressFill.style.background = 'linear-gradient(90deg, #48c774 0%, #3ec46d 100%)';
+                    break;
+                case 'processing':
+                    progressFill.style.background = 'linear-gradient(90deg, #3273dc 0%, #2366d1 100%)';
+                    break;
+                case 'training':
+                    progressFill.style.background = 'linear-gradient(90deg, #9b59b6 0%, #8e44ad 100%)';
+                    break;
+                case 'completed':
+                    progressFill.style.background = 'linear-gradient(90deg, #27ae60 0%, #219653 100%)';
+                    break;
+                case 'failed':
+                    progressFill.style.background = 'linear-gradient(90deg, #e74c3c 0%, #c0392b 100%)';
+                    break;
+            }
+        }
+        
+        function addStatusLog(message) {
+            const statusLog = document.getElementById('statusLog');
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString();
+            
+            const logItem = document.createElement('div');
+            logItem.className = 'status-item';
+            logItem.innerHTML = `[${timeStr}] ${message}`;
+            
+            statusLog.prepend(logItem);
+            
+            while (statusLog.children.length > 15) {
+                statusLog.removeChild(statusLog.lastChild);
+            }
+        }
+        
+        function openViewer() {
+            // 跳转到/viewer路由
+            //window.location.href = `/viewer`;
+            window.open('/viewer', '_blank');
+        }
+
+        function ManagerViewer() {
+            window.location.href = '/manager';
+        }
+        
+        function logout() {
+            window.location.href = '/logout';
+        }
+        
+        // 页面加载时初始化
+        window.addEventListener('DOMContentLoaded', () => {
+            updateButtons();
+        });
+    </script>
+</body>
+</html>

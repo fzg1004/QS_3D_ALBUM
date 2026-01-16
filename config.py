@@ -8,8 +8,11 @@ class Config:
     LOG_DIR = BASE_DIR / "logs"
     STATIC_DIR = BASE_DIR / "static"
     TEMPLATE_DIR = BASE_DIR / "templates"
-    
-    
+
+
+    APPID = "wxacab755fe2f98821"
+    APPSECRET = "89a32aeebfe95ed226b32b23ed41db43"
+
     # JWT配置
     JWT_SECRET_KEY = "your-jwt-secret-key-change-this"
     JWT_EXPIRE_SECONDS = 1296000

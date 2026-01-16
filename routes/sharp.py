@@ -238,6 +238,10 @@ def sharp_status(task_id):
     task = sharp_tasks.get(task_id)
     if not task:
         return json_response(code=405, msg='任务不存在'), 404
+    
+    task_status = task.get('status')
+    if task_status in ['completed', 'failed']:
+        del sharp_tasks[task_id]  # 删除指定id的任务
 
     return json_response(code=0, msg='获取任务状态成功', data={'task': {
         'status': task.get('status'),

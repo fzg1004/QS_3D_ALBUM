@@ -1,4 +1,7 @@
-from flask import Blueprint, jsonify, request, session, redirect, url_for
+import random
+import string
+import requests
+from flask import Blueprint, jsonify, request, session, redirect, url_for, request
 import os
 import sys
 
@@ -8,12 +11,39 @@ from utils.tools import *
 
 from db.db import *
 from error_code.JsonError import json_response
+from config import Config
 
 # 创建登录蓝图
 login_bp = Blueprint('login', __name__)
 
 
-       
+def get_wx_openid(code):
+    # 替换为你的小程序AppID和AppSecret（公众平台开发设置里找）
+    appid = Config.APPID
+    appsecret = Config.APPSECRET
+    # 微信官方接口，用code换openid
+    url = f"https://api.weixin.qq.com/sns/jscode2session?appid={appid}&secret={appsecret}&js_code={code}&grant_type=authorization_code"
+    
+    try:
+        # 核心：Flask中发送GET请求并解析JSON
+        res = requests.get(url)
+        res_data = res.json()  # 解析返回的JSON数据
+        
+        # 3. 处理返回结果
+        openid = res_data.get('openid')
+        return openid
+        
+    except Exception as e:
+        return None
+   
+
+def generate_short_pwd(length=6):
+    # 可选字符：数字+大小写字母（也可只保留数字）
+    chars = string.digits + string.ascii_letters
+    # 随机选择6个字符拼接
+    return ''.join(random.choice(chars) for _ in range(length))       
+
+
 @login_bp.route('/api/check-login', methods=['POST'])
 def check_login():
     try:
@@ -138,7 +168,68 @@ def login_api():
         print(f"登录接口异常：{str(e)}")
         return json_response(code=211, msg='服务器内部错误', data={})
 
-@login_bp.route('/logout')
+
+@login_bp.route('/wx-login', methods=['POST'])
+def wx_login_api():
+    """用户登录接口：验证用户名+加密密码，返回JWT"""
+    try:
+        # 1. 接收前端参数
+        req_data = request.get_json() or {}
+        wx_code = req_data.get('code')
+
+        # 2. 参数校验
+        if not wx_code :
+            return json_response(code=213, msg='微信登录错误', data={})
+              
+        username = get_wx_openid(wx_code)
+        if not username:
+            return json_response(code=214, msg='微信登录错误', data={}) 
+        
+        
+        # 3. 直接注册
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # 查询user表，检查用户是否存在
+        cursor.execute("SELECT id, username FROM user WHERE username = ?", (username,))
+        existing_user = cursor.fetchone()
+
+
+        if existing_user:
+            # 用户已存在，使用现有用户信息
+            user_id = existing_user[0]
+            username = existing_user[1]
+        else:
+            # 用户不存在，插入新用户
+            try:
+                cursor.execute(
+                    'INSERT INTO user (username, password) VALUES (?, ?)',
+                    (username, generate_short_pwd())
+                )
+                user_id = cursor.lastrowid
+                conn.commit()
+                
+            except Exception as e:
+                conn.rollback()
+                return json_response(code=215, msg='微信登录失败', data={}) 
+            
+            finally:
+                cursor.close()
+                conn.close()
+
+        token = generate_jwt(user_id, username)
+
+        # 6. 返回成功结果
+        return json_response(code=0, msg='登录成功', data={
+            'token': token,
+            'username': username  # 可选：返回用户名给前端
+        })
+
+    except Exception as e:
+        print(f"登录接口异常：{str(e)}")
+        return json_response(code=211, msg='服务器内部错误', data={})
+
+@login_bp.route('/logout', methods=['POST'])
 def logout():
     """登出接口：JWT无服务端存储，仅做兜底验证"""
     try:

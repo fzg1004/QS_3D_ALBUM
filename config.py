@@ -8,8 +8,13 @@ class Config:
     LOG_DIR = BASE_DIR / "logs"
     STATIC_DIR = BASE_DIR / "static"
     TEMPLATE_DIR = BASE_DIR / "templates"
+    SSL_DIR = BASE_DIR / "key"
 
+    #https证书相关
+    SSL_CERT_FILE = SSL_DIR / "jumeijiacn.com_bundle.crt"
+    SSL_KEY_FILE = SSL_DIR / "jumeijiacn.com.key"
 
+    #小程序登录相关
     APPID = "wxacab755fe2f98821"
     APPSECRET = "89a32aeebfe95ed226b32b23ed41db43"
 
@@ -18,7 +23,7 @@ class Config:
     JWT_EXPIRE_SECONDS = 1296000
     
     # 服务器配置
-    HOST = "0.0.0.0"
+    HOST = "0.0.0.0"; #"www.jumeijiacn.com"
     PORT = 8090
 
     DEBUG = True

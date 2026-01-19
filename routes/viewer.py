@@ -27,9 +27,8 @@ def viewer_page():
 @login_required
 def serve_model(filename):
     
-    username = g.username
-    
-    print(filename);
+    username = "18320806992";#g.username
+    print(filename)
     
     data_dir = current_app.config.get('DATA_DIR', 'data')
     sm = StorageManager(data_dir)
@@ -38,6 +37,7 @@ def serve_model(filename):
     try:
         # 规范化路径，防止路径穿越攻击
         user_file_path = sm.get_full_path(username, filename)
+        print(user_file_path)
 
         # Ensure requested file is inside the user's models directory
         if not user_file_path.startswith(models_dir + os.sep) and os.path.basename(user_file_path) != filename:

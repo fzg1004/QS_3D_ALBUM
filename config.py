@@ -23,8 +23,8 @@ class Config:
     JWT_EXPIRE_SECONDS = 1296000
     
     # 服务器配置
-    HOST = "0.0.0.0"; #"www.jumeijiacn.com"
-    PORT = 8090
+    HOST = "www.jumeijiacn.com"; #"0.0.0.0"
+    PORT = 443;# 8090
 
     DEBUG = True
     

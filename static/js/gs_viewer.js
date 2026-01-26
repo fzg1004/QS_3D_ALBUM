@@ -898,6 +898,47 @@ function resize() {
         innerHeight,
     );
 
+    //modify 可以根据以下代码指定canvas渲染大小
+    // 计算80%区域的视口
+    /*
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    // 80%区域的计算
+    const marginX = viewportWidth * 0.1;  // 10%边距
+    const marginY = viewportHeight * 0.1; // 10%边距
+    const centerWidth = viewportWidth * 0.8;
+    const centerHeight = viewportHeight * 0.8;
+    
+    // 设置canvas尺寸
+    canvas.width = Math.round(viewportWidth / downsample);
+    canvas.height = Math.round(viewportHeight / downsample);
+    
+    // 设置视口（WebGL坐标系：左下角为原点）
+    const viewportX = (marginX / viewportWidth) * canvas.width;
+    const viewportY = (marginY / viewportHeight) * canvas.height;
+    const viewportW = (centerWidth / viewportWidth) * canvas.width;
+    const viewportH = (centerHeight / viewportHeight) * canvas.height;
+    
+    gl.viewport(viewportX, viewportY, viewportW, viewportH);
+    
+    // 清除整个canvas的背景
+    gl.clearColor(0.1, 0.1, 0.1, 1.0); // 设置边距区域颜色
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    
+    // 恢复渲染区域背景色为透明或黑色
+    gl.clearColor(0, 0, 0, 0);
+    gl.enable(gl.SCISSOR_TEST);
+    gl.scissor(viewportX, viewportY, viewportW, viewportH);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.disable(gl.SCISSOR_TEST);
+    
+    // 更新uniform
+    gl.uniform2fv(u_viewport, new Float32Array([centerWidth, centerHeight]));
+    gl.uniformMatrix4fv(u_projection, false, projectionMatrix);
+    */
+
+    // 原始代码
     gl.uniform2fv(u_viewport, new Float32Array([innerWidth, innerHeight]));
 
     gl.canvas.width = Math.round(innerWidth / downsample);
@@ -917,7 +958,9 @@ function bindGlobalEvents() {
         // 步骤2：停止事件冒泡（避免事件传递到下拉框等其他元素）
         //e.stopPropagation();
 
-        if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        /*
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight' || 
+            (e.key >= '0' && e.key <= '9') || /^[a-zA-Z]$/.test(e.key)) {
             // 检查当前焦点是否在目标下拉框上
             const modelFileSelect = document.getElementById('model-file');
             if (modelFileSelect && document.activeElement === modelFileSelect) {
@@ -929,7 +972,7 @@ function bindGlobalEvents() {
                 canvas.focus();
             }
         }
-
+        */
 
         carousel = false;
         if (!activeKeys.includes(e.code)) activeKeys.push(e.code);
@@ -1449,6 +1492,113 @@ function selectLocalFile(file) {
     }
 }
 
+
+
+// 新增. 全局暴露：直接加载数据
+// 全局暴露：直接加载二进制数据（无需再请求服务器）
+window.loadModelByData = async function(modeData) {
+    if (!modeData) {
+        console.error('加载失败：二进制数据为空');
+        return;
+    }
+
+    // 步骤1：初始化WebGL（若未初始化）
+    await initWebGL().catch((err) => {
+        const messageDom = document.getElementById("message");
+        if (messageDom) messageDom.innerText = err.toString();
+        throw err;
+    });
+
+    // 步骤2：停止当前加载（若有），重置状态
+    stopLoading = true;
+    vertexCount = 0;
+    const spinnerDom = document.getElementById("spinner");
+    const progressDom = document.getElementById("progress");
+    const messageDom = document.getElementById("message");
+    
+    if (spinnerDom) spinnerDom.style.display = "";
+    if (progressDom) {
+        progressDom.style.width = "0%";
+        progressDom.style.display = "block";
+    }
+    if (messageDom) messageDom.innerText = "正在加载本地缓存模型...";
+
+
+    try {
+        // 步骤4：处理二进制数据（替代原fetch请求）
+        // 将传入的ArrayBuffer转为Uint8Array
+        const splatDataUint8 = new Uint8Array(modeData);
+        const contentLength = splatDataUint8.length; // 二进制数据总长度
+        console.log("本地缓存模型大小：", contentLength, "字节");
+
+        // 初始化模型相关变量
+        splatData = splatDataUint8;
+        downsample = splatData.length / rowLength > 500000 ? 1 : 1 / devicePixelRatio;
+        resize(); // 重新调整视口和投影矩阵
+
+        let bytesRead = 0;
+        let lastVertexCount = -1;
+        stopLoading = false;
+
+        // 步骤5：模拟流式处理（复用原有Worker逻辑）
+        // 按chunk拆分数据（模拟流式读取，保持原有逻辑兼容）
+        const CHUNK_SIZE = 1024 * 1024; // 1MB/块
+        while (bytesRead < contentLength && !stopLoading) {
+            // 截取当前chunk
+            const chunkEnd = Math.min(bytesRead + CHUNK_SIZE, contentLength);
+            const chunk = splatData.subarray(bytesRead, chunkEnd);
+            
+            // 更新已读取长度
+            bytesRead = chunkEnd;
+
+            // 计算进度并更新DOM
+            const progress = (bytesRead / contentLength) * 100;
+            if (progressDom) progressDom.style.width = `${progress}%`;
+            if (messageDom) messageDom.innerText = `正在加载本地缓存模型, 已完成 ${Math.round(progress)}%...`;
+
+
+            // 发送chunk数据给Worker处理
+            vertexCount = Math.floor(bytesRead / rowLength);
+            if (vertexCount > lastVertexCount && !isPly(splatData)) {
+                worker.postMessage({
+                    buffer: splatData.buffer,
+                    vertexCount: vertexCount,
+                });
+                lastVertexCount = vertexCount;
+            }
+
+            // 短暂延迟，模拟流式加载（可选，提升体验）
+            await new Promise(resolve => setTimeout(resolve, 10));
+        }
+
+        // 步骤6：处理完整模型数据
+        if (!stopLoading) {
+            if (isPly(splatData)) {
+                worker.postMessage({ ply: splatData.buffer, save: false });
+            } else {
+                worker.postMessage({
+                    buffer: splatData.buffer,
+                    vertexCount: Math.floor(bytesRead / rowLength),
+                });
+            }
+            if (messageDom) messageDom.innerText = "模型加载完成！";
+        }
+
+        // 隐藏加载状态
+        if (spinnerDom) spinnerDom.style.display = "none";
+        if (progressDom) progressDom.style.display = "none";
+        if (messageDom) messageDom.style.display = "none";
+        console.log("本地缓存模型加载完成");
+
+    } catch (err) {
+        // 错误处理
+        if (spinnerDom) spinnerDom.style.display = "none";
+        if (messageDom) messageDom.innerText = `加载失败：${err.toString()}`;
+        console.error("本地缓存模型加载失败：", err);
+    }
+};
+
+
 // 7. 全局暴露：根据文件名加载模型（供HTML页面下拉框调用）
 window.loadModelByFileName = async function(fileName) {
     if (!fileName) return;
@@ -1474,15 +1624,25 @@ window.loadModelByFileName = async function(fileName) {
     if (messageDom) messageDom.innerText = "";
 
     // 步骤3：拼接模型完整路径（后端在 /viewer/<filename> 提供文件）
-    const modelUrl = `/models/${fileName}`;
+    const baseUrl = window.location.origin; // 自动获取 http://192.168.40.92:8090
+    const modelUrl = `/viewer/${fileName}`;
     console.log("开始加载模型：", modelUrl);
+
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+  
+    console.log('修正后的模型请求地址：', modelUrl);
 
     // 步骤4：请求模型文件
     try {
         const req = await fetch(modelUrl, {
             // same-origin credentials required so session cookie is sent
             mode: 'same-origin',
-            credentials: 'same-origin',
+            //credentials: 'same-origin',
+            headers: {
+            'token': `${token}` // 携带 Token 过鉴权
+            },
+            credentials: 'include' // 兼容 Cookie 鉴权
         });
 
         if (req.status !== 200) {

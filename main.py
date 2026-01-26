@@ -80,8 +80,8 @@ def main():
     print(f"Attributes: {dir(jwt)}")
     '''
     # 启动Flask服务
-    app.run(host='0.0.0.0', port=Config.PORT, debug=Config.DEBUG, ssl_context=(Config.SSL_CERT_FILE, Config.SSL_KEY_FILE))
-    #app.run(host='0.0.0.0', port=Config.PORT, debug=Config.DEBUG)
+    #app.run(host='0.0.0.0', port=Config.PORT, debug=Config.DEBUG, ssl_context=(Config.SSL_CERT_FILE, Config.SSL_KEY_FILE))
+    app.run(host=Config.HOST, port=Config.PORT, debug=Config.DEBUG)
     
     
 

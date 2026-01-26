@@ -1,6 +1,7 @@
-from flask import Blueprint, render_template, jsonify, request, session, current_app, g
+from flask import Blueprint, render_template, jsonify, request, session, current_app, g, send_file
 import os
 import sys
+import urllib.parse
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -120,7 +121,14 @@ def upload_image():
         t = threading.Thread(target=_run_sharp_task, args=(task_id, data_dir, save_path, username, rel_folder), daemon=True)
         t.start()
         
-        return json_response(code=0, msg='上传成功', data={'taskId': task_id})
+        #从状态字典中获取任务结果
+        task = sharp_tasks.get(task_id)
+        if not task:
+            return json_response(code=405, msg='任务不存在'), 404
+    
+        result = task.get('result')
+        return json_response(code=0, msg='上传成功', data={'taskId': task_id, "result": result})
+    
     except Exception as e:
         current_app.logger.exception('上传图像失败')
         return json_response(code=404, msg='服务器错误: ' + str(e)), 500
@@ -129,14 +137,20 @@ def upload_image():
 def _run_sharp_task(task_id, data_dir,image_path, username, rel_folder):
     
     update_task_status(task_id, TaskStatus.TRAINING, "正在重建...", 20)
-    time.sleep(30)
+    time.sleep(10)
     
     update_task_status(task_id, TaskStatus.PROCESSING, "正在处理数据...", 50)
     time.sleep(10)
     
-    update_task_status(task_id, TaskStatus.COMPLETED, "已完成", 100)
-            
+    # 原始文件名（带路径）
+    original_filename = "20160915_IMG_0078/20160915_IMG_0078.ply"
+
+    # 编码：整体编码，保留路径结构的同时处理特殊字符
+    encoded_filename = urllib.parse.quote(original_filename, safe='')
     
+    viewer_link = f"http://{Config.HOST}:{Config.PORT}/viewer?model={encoded_filename}"
+    update_task_status(task_id, TaskStatus.COMPLETED, "已完成", 100, viewer_link)
+    print(viewer_link)
     
     '''
     update_task_status(task_id, TaskStatus.TRAINING, "正在重建...", 80)
@@ -249,3 +263,43 @@ def sharp_status(task_id):
         'message': task.get('message', ''),
         'result': task.get('result')
     }})
+
+
+
+@sharp_bp.route('/sharp/<path:filename>')
+@login_required
+def serve_model(filename):
+    
+    username = g.username
+    decoded_filename = urllib.parse.unquote(filename)
+
+    data_dir = current_app.config.get('DATA_DIR', 'data')
+    sm = StorageManager(data_dir)
+    models_dir = sm.ensure_user(username)
+
+    try:
+        # 规范化路径，防止路径穿越攻击
+        user_file_path = sm.get_full_path(username, decoded_filename)
+        print(user_file_path)
+
+        # Ensure requested file is inside the user's models directory
+        if not user_file_path.startswith(models_dir + os.sep) and os.path.basename(user_file_path) != decoded_filename:
+            current_app.logger.warning(f"Attempt to access file outside user dir: {user_file_path}")
+            return json_response(code=302, msg='非法的文件路径', data={}), 400
+
+        if os.path.isfile(user_file_path):
+            # 返回文件内容（send_file 会处理 mime-type）
+            current_app.logger.info(f"Serving model file: {user_file_path}")
+            return send_file(user_file_path)
+        
+        else:
+            return json_response(code=303, msg='模型文件不存在', data={}), 404
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        current_app.logger.error('Error serving model file: %s', tb)
+        if current_app.debug:
+            return json_response(code=304, msg='服务器内部错误', data={'error': str(e), 'trace': tb}), 500
+        else:
+            return json_response(code=305, msg='服务器内部错误', data={}), 500
+            

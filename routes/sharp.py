@@ -80,9 +80,17 @@ def get_user_image_dir(username):
 @sharp_bp.route('/sharp')
 @login_required
 def sharp_page():
-    """显示sharp页面"""
+    """显示sharp页面
     username = session.get('username', 'Guest')
     return render_template('sharp.html', username=username)
+    """
+    return json_response(code=0, msg='sharp', data={})
+
+
+@sharp_bp.route('/sharp/ping')
+def sharping():
+    return json_response(code=0, msg='sharp pong', data={})
+
 
 
 @sharp_bp.route('/sharp/images', methods=['POST'])
@@ -136,115 +144,117 @@ def upload_image():
 
 def _run_sharp_task(task_id, data_dir,image_path, username, rel_folder):
     
-    update_task_status(task_id, TaskStatus.TRAINING, "正在重建...", 20)
-    time.sleep(10)
+    if Config.USE_GPU_SERVER : 
+        update_task_status(task_id, TaskStatus.TRAINING, "正在重建...", 80)
     
-    update_task_status(task_id, TaskStatus.PROCESSING, "正在处理数据...", 50)
-    time.sleep(10)
-    
-    # 原始文件名（带路径）
-    original_filename = "20160915_IMG_0078/20160915_IMG_0078.ply"
+        trainer = ImageModelTrainer()
+        sm = StorageManager(data_dir)
+        # image_path is the saved image file; sharp predict expects an input directory
+        image_dir = os.path.dirname(image_path)
+        # output directory should be the same image folder so generated ply sits alongside the image
+        user_dir = os.path.join(data_dir, username)
+        out_dir = os.path.join(user_dir, rel_folder)
+        os.makedirs(out_dir, exist_ok=True)
 
-    # 编码：整体编码，保留路径结构的同时处理特殊字符
-    encoded_filename = urllib.parse.quote(original_filename, safe='')
-    
-    viewer_link = f"http://{Config.HOST}:{Config.PORT}/viewer?model={encoded_filename}"
-    update_task_status(task_id, TaskStatus.COMPLETED, "已完成", 100, viewer_link)
-    print(viewer_link)
-    
-    '''
-    update_task_status(task_id, TaskStatus.TRAINING, "正在重建...", 80)
-    
-    trainer = ImageModelTrainer()
-    sm = StorageManager(data_dir)
-    # image_path is the saved image file; sharp predict expects an input directory
-    image_dir = os.path.dirname(image_path)
-    # output directory should be the same image folder so generated ply sits alongside the image
-    user_dir = os.path.join(data_dir, username)
-    out_dir = os.path.join(user_dir, rel_folder)
-    os.makedirs(out_dir, exist_ok=True)
+        # call trainer with input directory and output directory
+        training_result = trainer.train(image_dir, out_dir)
+        if not training_result.get('success'):
+            update_task_status(task_id, TaskStatus.FAILED, f"重建失败: {training_result.get('message')}", training_result.get('log', []))
+            return
 
-    # call trainer with input directory and output directory
-    training_result = trainer.train(image_dir, out_dir)
-    if not training_result.get('success'):
-        update_task_status(task_id, TaskStatus.FAILED, f"重建失败: {training_result.get('message')}", training_result.get('log', []))
-        return
+        update_task_status(task_id, TaskStatus.PROCESSING, "正在处理数据...", 10)
+        out_dir = training_result.get('output_dir')
 
-    update_task_status(task_id, TaskStatus.PROCESSING, "正在处理数据...", 10)
-    out_dir = training_result.get('output_dir')
-
-    # 查找输出目录中的 ply / ply.gz / splat 文件
-    result_file = None
-    try:
-        for fname in os.listdir(out_dir):
-            if fname.lower().endswith(('.ply', '.splat')):
-                result_file = fname
-                break
-    except Exception:
+        # 查找输出目录中的 ply / ply.gz / splat 文件
         result_file = None
-
-    if result_file:
-        # 1) attempt conversion using convert.py (if available)
         try:
-            teaser_full = os.path.join(out_dir, result_file)
-            # determine output filename: base + _convert + ext
-            base, ext = os.path.splitext(result_file)
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            converted_name = f"{base}_{timestamp}{ext}"
-            converted_full = os.path.join(out_dir, converted_name)
-            #target_full = os.path.join(data_dir, Config.Target_File)
+            for fname in os.listdir(out_dir):
+                if fname.lower().endswith(('.ply', '.splat')):
+                    result_file = fname
+                    break
+        except Exception:
+            result_file = None
 
-            print(f"input file : {teaser_full}")
-            #print(f"target file: {target_full}")
-            print(f"output file: {converted_full}")
-            # call converter
-            #ply_convert(Path(teaser_full), Path(target_full), Path(converted_full))
-            ply_convert(Path(teaser_full), Path(converted_full))
-            
-            # remove intermediate teaser file
+        if result_file:
+            # 1) attempt conversion using convert.py (if available)
             try:
-                os.remove(teaser_full)
-            except Exception:
-                current_app.logger.exception('删除中间文件失败')
-            
-            # 尝试将转换后的文件重命名为与输出文件夹同名（保留扩展名），避免覆盖已有文件
-            try:
-                folder_name = os.path.basename(out_dir.rstrip(os.sep))
-                new_name = f"{folder_name}{ext}"
-                new_full = os.path.join(out_dir, new_name)
+                teaser_full = os.path.join(out_dir, result_file)
+                # determine output filename: base + _convert + ext
+                base, ext = os.path.splitext(result_file)
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                converted_name = f"{base}_{timestamp}{ext}"
+                converted_full = os.path.join(out_dir, converted_name)
+                #target_full = os.path.join(data_dir, Config.Target_File)
 
-                if os.path.abspath(converted_full) != os.path.abspath(new_full):
-                    # 若目标名已存在，则在其后追加时间戳以避免覆盖
-                    if os.path.exists(new_full):
-                        ts2 = datetime.now().strftime('%Y%m%d_%H%M%S')
-                        new_name = f"{folder_name}_{ts2}{ext}"
-                        new_full = os.path.join(out_dir, new_name)
-                    os.replace(converted_full, new_full)
-                    converted_name = new_name
-                    converted_full = new_full
-            except Exception:
-                current_app.logger.exception('重命名转换文件失败')
+                print(f"input file : {teaser_full}")
+                print(f"output file: {converted_full}")
+                ply_convert(Path(teaser_full), Path(converted_full))
+                
+                # remove intermediate teaser file
+                try:
+                    os.remove(teaser_full)
+                except Exception:
+                    current_app.logger.exception('删除中间文件失败')
+                
+                # 尝试将转换后的文件重命名为与输出文件夹同名（保留扩展名），避免覆盖已有文件
+                try:
+                    folder_name = os.path.basename(out_dir.rstrip(os.sep))
+                    new_name = f"{folder_name}{ext}"
+                    new_full = os.path.join(out_dir, new_name)
 
-            # register converted file (use final converted_name)
-            rel_converted = os.path.join(rel_folder, converted_name).replace('\\', '/')
-            try:
-                sm.add_model(username, rel_converted)
-            except Exception:
-                current_app.logger.exception('注册转换后模型失败')
+                    if os.path.abspath(converted_full) != os.path.abspath(new_full):
+                        # 若目标名已存在，则在其后追加时间戳以避免覆盖
+                        if os.path.exists(new_full):
+                            ts2 = datetime.now().strftime('%Y%m%d_%H%M%S')
+                            new_name = f"{folder_name}_{ts2}{ext}"
+                            new_full = os.path.join(out_dir, new_name)
+                        os.replace(converted_full, new_full)
+                        converted_name = new_name
+                        converted_full = new_full
+                except Exception:
+                    current_app.logger.exception('重命名转换文件失败')
 
-            # prefer returning converted file as task result
-            update_task_status(task_id, TaskStatus.COMPLETED, "已完成，查看模型请点击\"查看我的模型\"按钮", 100, result=rel_converted)
-            
-            
-        except Exception as e:
-            # conversion failed; still register original result and finish
-            current_app.logger.exception('PLY 转换失败')
-            rel = os.path.join(rel_folder, result_file).replace('\\', '/')
-            update_task_status(task_id, TaskStatus.COMPLETED, f"完成（转换失败: {e}", 100, result=rel)
+                # register converted file (use final converted_name)
+                rel_converted = os.path.join(rel_folder, converted_name).replace('\\', '/')
+                try:
+                    sm.add_model(username, rel_converted)
+                except Exception:
+                    current_app.logger.exception('注册转换后模型失败')
+
+                
+                encoded_filename = urllib.parse.quote(rel_converted, safe='')
+                viewer_link = f"{Config.CLOUD_SERVER}/viewer?model={encoded_filename}"
+                update_task_status(task_id, TaskStatus.COMPLETED, "已完成", 100, result=viewer_link)
+
+
+                
+            except Exception as e:
+                # conversion failed; still register original result and finish
+                current_app.logger.exception('PLY 转换失败')
+                rel = os.path.join(rel_folder, result_file).replace('\\', '/')
+                update_task_status(task_id, TaskStatus.COMPLETED, f"完成（转换失败: {e}", 100, result=rel)
+        else:
+            # 若没有找到直接的模型文件，仍返回输出目录供人工查看
+            update_task_status(task_id, TaskStatus.COMPLETED, "完成（未找到明确的模型文件，输出在目录）", 100, result=os.path.basename(out_dir))
+    
     else:
-        # 若没有找到直接的模型文件，仍返回输出目录供人工查看
-        update_task_status(task_id, TaskStatus.COMPLETED, "完成（未找到明确的模型文件，输出在目录）", 100, result=os.path.basename(out_dir))
-    '''
+        
+        update_task_status(task_id, TaskStatus.TRAINING, "正在重建...", 20)
+        time.sleep(10)
+        
+        update_task_status(task_id, TaskStatus.PROCESSING, "正在处理数据...", 50)
+        time.sleep(10)
+        
+        # 原始文件名（带路径）
+        original_filename = "20160915_IMG_0078/20160915_IMG_0078.ply"
+
+        # 编码：整体编码，保留路径结构的同时处理特殊字符
+        encoded_filename = urllib.parse.quote(original_filename, safe='')
+        
+        viewer_link = f"{Config.CLOUD_SERVER}/viewer?model={encoded_filename}"
+        update_task_status(task_id, TaskStatus.COMPLETED, "已完成", 100, viewer_link)
+        print(viewer_link)
+  
 
 @sharp_bp.route('/sharp/status/<task_id>')
 @login_required
@@ -304,6 +314,3 @@ def serve_model(filename):
             return json_response(code=305, msg='服务器内部错误', data={}), 500
             
             
-@sharp_bp.route('/sharp/ping')
-def sharping():
-    return json_response(code=0, msg='sharp pong', data={})

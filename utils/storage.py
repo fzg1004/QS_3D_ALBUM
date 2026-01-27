@@ -1,7 +1,7 @@
 import os
 import xml.etree.ElementTree as ET
 from werkzeug.utils import secure_filename
-
+from config import Config
 
 class StorageManager:
     """Manage per-user storage layout under DATA_DIR.
@@ -41,7 +41,7 @@ class StorageManager:
         return os.path.join(self.user_dir(username), self.INDEX_NAME)
 
     def list_models(self, username):
-        """Return list of model entries: dicts with 'relpath' and 'name'"""
+        """Return list of model entries: dicts with 'relpath' and 'name' and 'url' """
         idx = self.index_path(username)
         models = []
         if not os.path.exists(idx):
@@ -52,7 +52,8 @@ class StorageManager:
             for m in root.findall('model'):
                 path = m.get('path')
                 name = m.get('name') or os.path.basename(path)
-                models.append({'relpath': path, 'name': name})
+                url = m.get('url')
+                models.append({'relpath': path, 'name': name, 'url': url})
         except ET.ParseError:
             return []
         return models
@@ -69,8 +70,14 @@ class StorageManager:
                 return
         el = ET.SubElement(root, 'model')
         el.set('path', relpath)
+        
+        #增加一个下载地址
+        model_url = f"{Config.CLOUD_SERVER}/{relpath.lstrip('/')}"  # lstrip避免重复的/
+        el.set('url', model_url)
+        
         if display_name:
             el.set('name', display_name)
+            
         tree.write(idx, encoding='utf-8', xml_declaration=True)
 
     def remove_model(self, username, relpath):

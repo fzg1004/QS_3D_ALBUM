@@ -23,10 +23,14 @@ class Config:
     JWT_EXPIRE_SECONDS = 1296000
     
     # 服务器配置
-    HOST = "192.168.40.92"; #"www.jumeijiacn.com"
+    HOST = "0.0.0.0"; #"www.jumeijiacn.com"
     PORT = 8090;# 443
+    
+    CLOUD_SERVER = "https://www.jumeijiacn.com";
 
     DEBUG = True
+    
+    USE_GPU_SERVER = False  #启用GPU服务器进行模型转换
     
     # 文件上传配置
     MAX_VIDEO_CONTENT_LENGTH = 500 * 1024 * 1024  # 500MB

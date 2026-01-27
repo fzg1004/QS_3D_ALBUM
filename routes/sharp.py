@@ -77,7 +77,7 @@ def get_user_image_dir(username):
     return user_dir
 
 
-@sharp_bp.route('/sharp')
+@sharp_bp.route('/sharp/')
 @login_required
 def sharp_page():
     """显示sharp页面

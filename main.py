@@ -14,11 +14,26 @@ mimetypes.add_type('application/wasm', '.wasm')
 mimetypes.add_type('application/javascript', '.js')
 mimetypes.add_type('text/javascript', '.mjs')
 
+
+# 1. 先检查并创建日志目录（核心新增逻辑）
+log_dir = Config.LOG_DIR
+# 兼容 Path 对象和字符串路径两种情况
+if isinstance(log_dir, Path):
+    log_dir_path = log_dir
+else:
+    log_dir_path = Path(log_dir)
+
+# 检查目录是否存在，不存在则创建（mode=0o755 保证目录权限）
+if not log_dir_path.exists():
+    log_dir_path.mkdir(parents=True, exist_ok=True, mode=0o755)
+    logging.warning(f"日志目录不存在，已自动创建：{log_dir_path.absolute()}")
+    
+    
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler(Config.LOG_DIR / 'app.log'),
+        logging.FileHandler(Config.LOG_DIR / 'app.log', encoding='utf-8'),
         logging.StreamHandler()
     ]
 )
@@ -49,15 +64,20 @@ def create_app():
     CORS(app)
     
     # 导入并注册路由
-    from routes.login import login_bp
-    from routes.viewer import viewer_bp
-    from routes.sharp import sharp_bp
-    from routes.manager import manager_bp
+    if not Config.USE_GPU_SERVER : #* 启用业务服务器 */
+        
+        from routes.login import login_bp
+        from routes.viewer import viewer_bp
+        app.register_blueprint(viewer_bp)
+        app.register_blueprint(login_bp)
+        
+    else :  #* 启用 GPU 服务*/
+        from routes.manager import manager_bp
+        from routes.sharp import sharp_bp
+        
+        app.register_blueprint(sharp_bp)
+        app.register_blueprint(manager_bp)
     
-    app.register_blueprint(viewer_bp)
-    app.register_blueprint(login_bp)
-    app.register_blueprint(sharp_bp)
-    app.register_blueprint(manager_bp)
     
     return app
 
@@ -68,7 +88,6 @@ def main():
     
     print("=" * 50)
     print("Flask PLY 3D可视化服务器已启动！")
-    print(f"访问地址：http://localhost:8090")
     print(f"静态文件目录：{app.config['STATIC_DIR']}")
     print(f"模板文件目录：{app.config['TEMPLATES_DIR']}")
     print("=" * 50)

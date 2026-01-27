@@ -30,7 +30,7 @@ class Config:
 
     DEBUG = True
     
-    USE_GPU_SERVER = False  #启用GPU服务器进行模型转换
+    USE_GPU_SERVER = True  #启用GPU服务器进行模型转换
     
     # 文件上传配置
     MAX_VIDEO_CONTENT_LENGTH = 500 * 1024 * 1024  # 500MB
@@ -54,6 +54,7 @@ class Config:
     GAUSSIAN_ENV = "sharp"
     
 
+    
     
     # 用户会话配置
     SECRET_KEY = "your-secret-key-change-this"

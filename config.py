@@ -24,7 +24,7 @@ class Config:
     
     # 服务器配置
     HOST = "0.0.0.0"; #"www.jumeijiacn.com"
-    PORT = 8090;# 443
+    PORT = 21000;# 443
     
     CLOUD_SERVER = "https://www.jumeijiacn.com";
 

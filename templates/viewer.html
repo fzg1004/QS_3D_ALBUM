@@ -371,9 +371,11 @@
 
                 // step 1. 从本地缓存加载模型
 				modelData = await ModelCache.getModel(modelFileName);
-				
-				// step 2. 如果没有则请求/viewer/<path:filename>,并将文件缓存到本地
-				if (!modelData) {
+				if(modelData) {
+					console.log('从本地缓存加载模型:', modelFileName);
+					window.loadModelByData(modelData); //
+
+				}else { //如果没有则请求/viewer/<path:filename>,并将文件缓存到本地
 					console.log('本地无缓存，从服务器下载:', modelFileName);
 					try {
 					
@@ -398,38 +400,64 @@
 							return;
 						}
 
+						//modelData = await response.arrayBuffer();
+
+						// 3. 获取文件总大小（从响应头Content-Length）
+						const contentLength = response.headers.get('Content-Length');
+						if (!contentLength) {
+							throw new Error('服务器未返回文件大小，无法显示下载进度');
+						}
+						const totalSize = parseInt(contentLength, 10); // 总字节数
+						let downloadedSize = 0; // 已下载字节数
+
+						// 4. 流式读取响应体，计算下载进度
+						const reader = response.body.getReader();
+						const chunks = []; // 存储分块数据
+
+					
+						const messageDom = document.getElementById("message");
+
+						while (true) {
+							const { done, value } = await reader.read();
+							if (done) break; // 下载完成，退出循环
+
+							// 累加已下载大小
+							downloadedSize += value.length;
+							chunks.push(value);
+
+							// 5. 计算进度并回调（保留1位小数）
+							const progress = Math.round((downloadedSize / totalSize) * 1000) / 10;
+
+							if(messageDom){
+								messageDom.innerText = `正在下载模型, 已完成 ${progress}%`
+							}
+							
+						}
+						
+						if(messageDom){
+							messageDom.innerText = "";
+						}
+
+						// 6. 合并所有分块为完整的Blob（保持原文件MIME类型）
+						const modelData = new Blob(chunks, {
+							type: response.headers.get('Content-Type') || 'application/octet-stream'
+						});
+
+
 						// 读取二进制数据并缓存
-						modelData = await response.arrayBuffer();
 						await ModelCache.saveModel(modelFileName, modelData);
-						// 保存全局buffer（你原有的变量）
-						currentModelBuffer = modelData;
+
+
+						window.loadModelByData(modelData); 
+
+
 					} catch (error) {
 						console.error('下载模型失败:', error);
 						alert('模型下载失败：网络异常或文件不存在');
 						return;
 					}
-				} else {
-					console.log('从本地缓存加载模型:', modelFileName);
-					// 缓存命中时更新全局buffer
-					currentModelBuffer = modelData;
-				}
+				} 
 
-				// 保存当前模型名（你原有的变量）
-				currentModelName = modelFileName;
-
-				window.loadModelByData(modelData); // 优先传二进制数据
-
-				/*
-				// step 3. 调用 main.js 的加载方法
-				if (window.loadModelByFileName) {
-					window.loadModelByFileName(filePath); // 传解码后的文件名
-				} else if (window.loadModelByData) {
-					window.loadModelByData(modelData); // 优先传二进制数据
-				} else {
-					console.error('加载模型方法未定义');
-					alert('模型加载失败：核心加载方法未找到');
-				}
-				*/
             }
 
            

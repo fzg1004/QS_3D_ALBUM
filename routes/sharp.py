@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, jsonify, request, session, current_app, g, send_file
+from flask import Blueprint, render_template, jsonify, request, session, current_app, g, send_file, make_response  
 import os
 import sys
 import urllib.parse
@@ -299,8 +299,30 @@ def serve_model(filename):
 
         if os.path.isfile(user_file_path):
             # 返回文件内容（send_file 会处理 mime-type）
-            current_app.logger.info(f"Serving model file: {user_file_path}")
-            return send_file(user_file_path)
+            
+            # 1. 获取文件大小（字节数）
+            file_size = os.path.getsize(user_file_path)
+            current_app.logger.info(f"Serving model file: {user_file_path}, size: {file_size} bytes")
+            
+            # 2. 用make_response包装send_file，手动添加响应头
+            response = make_response(send_file(user_file_path))
+            
+            # 3. 添加Content-Length头（前端读取文件总大小的关键）
+            response.headers['Content-Length'] = str(file_size)
+            
+            # 4. 核心：允许前端跨域读取Content-Length头（必加，否则前端拿不到）
+            response.headers['Access-Control-Expose-Headers'] = 'Content-Length'
+            
+            # ========== 可选优化：添加文件下载相关头 ==========
+            # 可选：指定文件下载的MIME类型（send_file会自动识别，可补充）
+            response.headers['Content-Type'] = 'application/octet-stream'
+            # 可选：强制浏览器下载（如果需要），注释掉则浏览器会尝试预览
+            # response.headers['Content-Disposition'] = f'attachment; filename="{os.path.basename(user_file_path)}"'
+            
+            return response
+            
+            
+            #return send_file(user_file_path)
         
         else:
             return json_response(code=303, msg='模型文件不存在', data={}), 404

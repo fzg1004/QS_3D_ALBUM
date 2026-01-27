@@ -249,3 +249,9 @@ def logout():
     except Exception as e:
         print(f"登出接口异常：{str(e)}")
         return json_response(code=212, msg='服务器内部错误', data={})
+    
+
+@login_bp.route('/ping')
+def ping():
+    """测试接口：用于测试接口是否正常"""
+    return json_response(code=0, msg='pong', data={})

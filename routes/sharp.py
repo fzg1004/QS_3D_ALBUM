@@ -303,3 +303,7 @@ def serve_model(filename):
         else:
             return json_response(code=305, msg='服务器内部错误', data={}), 500
             
+            
+@sharp_bp.route('/sharp/ping')
+def sharping():
+    return json_response(code=0, msg='sharp pong', data={})

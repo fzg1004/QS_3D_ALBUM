@@ -26,7 +26,7 @@ class Config:
     HOST = "0.0.0.0"; #"www.jumeijiacn.com"
     PORT = 21000;# 443
     
-    CLOUD_SERVER = "https://www.jumeijiacn.com";
+    CLOUD_SERVER = "https://jumeijiacn.com";
 
     DEBUG = True
     

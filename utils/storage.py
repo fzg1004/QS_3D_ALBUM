@@ -58,7 +58,7 @@ class StorageManager:
             return []
         return models
 
-    def add_model(self, username, relpath, display_name=None):
+    def add_model(self, username, relpath, model_url, display_name=None):
         """Add a model entry (relpath is like image1/image1.ply)"""
         ud = self.ensure_user(username)
         idx = self.index_path(username)
@@ -72,7 +72,6 @@ class StorageManager:
         el.set('path', relpath)
         
         #增加一个下载地址
-        model_url = f"{Config.CLOUD_SERVER}/{relpath.lstrip('/')}"  # lstrip避免重复的/
         el.set('url', model_url)
         
         if display_name:

@@ -216,17 +216,18 @@ def _run_sharp_task(task_id, data_dir,image_path, username, rel_folder):
 
                 # register converted file (use final converted_name)
                 rel_converted = os.path.join(rel_folder, converted_name).replace('\\', '/')
+                encoded_filename = urllib.parse.quote(rel_converted, safe='')
+                
                 try:
-                    sm.add_model(username, rel_converted)
+                    viewer_link = f"{Config.CLOUD_SERVER}/viewer?model={encoded_filename}"
+                    sm.add_model(username, rel_converted, viewer_link)
+                    update_task_status(task_id, TaskStatus.COMPLETED, "已完成", 100, result=viewer_link)
+                
                 except Exception:
                     current_app.logger.exception('注册转换后模型失败')
-
+                    update_task_status(task_id, TaskStatus.FAILED, "保存失败", 100)
                 
-                encoded_filename = urllib.parse.quote(rel_converted, safe='')
-                viewer_link = f"{Config.CLOUD_SERVER}/viewer?model={encoded_filename}"
-                update_task_status(task_id, TaskStatus.COMPLETED, "已完成", 100, result=viewer_link)
-
-
+            
                 
             except Exception as e:
                 # conversion failed; still register original result and finish

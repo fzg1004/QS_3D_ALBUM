@@ -24,8 +24,9 @@ log_print() {
     fi
 }
 
+
 # ========== 核心开关：是否使用Conda虚拟环境（true/false） ==========
-USE_CONDA="true"  # false=不使用Conda，true=使用Conda
+USE_CONDA="false"  # false=不使用Conda，true=使用Conda
 
 # ========== 基础配置（根据实际情况修改） ==========
 # Conda配置（仅USE_CONDA=true时生效）
@@ -33,12 +34,13 @@ CONDA_ENV_NAME="QS3D_Album"                          # 你的Conda环境名
 CONDA_SH_PATH="/usr/local/anaconda3/etc/profile.d/conda.sh"  # conda.sh路径
 
 
+
 # 项目&服务配置（通用）
-PROJECT_DIR="/home/fzg25/project/QS_3D_ALBUM"  # 项目目录
+PROJECT_DIR="/home/fzg/QS_3D_ALBUM"  # 项目目录
 HOST="0.0.0.0"                                 # 外部可访问
-PORT="21000"                                   # 服务端口
+PORT="8090"                                   # 服务端口
 WORKERS="4"                                    # 工作进程数
-TIMEOUT="300"                                  # 超时时间
+TIMEOUT="100"                                  # 超时时间
 
 
 
@@ -60,15 +62,16 @@ SERVICE_LOG="${LOG_DIR}/flask_service.log"     # 监控日志
 ACCESS_LOG="${LOG_DIR}/flask_access.log"       # 访问日志
 ERROR_LOG="${LOG_DIR}/flask_error.log"         # 错误日志
 
-# 进程唯一标识（避免误判）
-SERVICE_TAG="QS_3D_ALBUM_21000"                # 自定义标签
 
+# 进程唯一标识（避免误判）
+SERVICE_TAG="QS_3D_ALBUM_8090"                # 自定义标签
 
 # ========== 初始化准备 ==========
 # 创建日志目录
 mkdir -p ${LOG_DIR} || { echo "创建日志目录失败"; exit 1; }
 # 写入启动日志
 log_print "服务启动脚本初始化（USE_CONDA=${USE_CONDA}）..." 
+
 
 
 # 校验Gunicorn路径
@@ -107,7 +110,7 @@ activate_env() {
 deactivate_env() {
     if [ "${USE_CONDA}" = "true" ]; then
         conda deactivate
-        log_print "Conda环境已退出" 
+        log_print "Conda环境已退出"
     fi
 }
 
@@ -138,7 +141,7 @@ start_service() {
 
     # 验证启动结果
     if [ $? -eq 0 ]; then
-        log_print "服务启动成功！进程标签：${SERVICE_TAG}" 
+        log_print "服务启动成功！进程标签：${SERVICE_TAG}"
     else
         log_print "ERROR: 服务启动失败"
         exit 1
@@ -158,7 +161,7 @@ check_process() {
     fi
 }
 
-# 函数5：停止服务（通用）
+# 函数5：停止服务（精准判断进程+分层清理，无残留）
 stop_service() {
     # ========== 第一步：精准判断进程是否存在（多维度验证） ==========
     # 维度1：通过端口查找进程PID（最核心）
@@ -211,6 +214,7 @@ stop_service() {
     else
         log_print "警告：仍有残留进程 PID: ${AFTER_ALL_PIDS}，请手动清理"
     fi
+
 }
 
 # ========== 主逻辑：参数控制（启动/停止/监控） ==========

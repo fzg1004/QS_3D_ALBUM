@@ -47,7 +47,7 @@ TIMEOUT="300"                                  # 超时时间
 # - USE_CONDA=false: 用系统gunicorn（需提前安装）
 GUNICORN_PATH=""
 if [ "${USE_CONDA}" = "true" ]; then
-    GUNICORN_PATH="/usr/local/anaconda3/envs/${CONDA_ENV_NAME}/bin/gunicorn"
+    GUNICORN_PATH="/home/fzg25/.conda/envs/${CONDA_ENV_NAME}/bin/gunicorn"
 else
     GUNICORN_PATH="$(which gunicorn)"  # 系统gunicorn路径
 fi

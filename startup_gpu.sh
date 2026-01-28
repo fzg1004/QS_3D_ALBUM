@@ -37,7 +37,7 @@ CONDA_SH_PATH="/usr/local/anaconda3/etc/profile.d/conda.sh"  # conda.sh路径
 PROJECT_DIR="/home/fzg25/project/QS_3D_ALBUM"  # 项目目录
 HOST="0.0.0.0"                                 # 外部可访问
 PORT="21000"                                   # 服务端口
-WORKERS="4"                                    # 工作进程数
+WORKERS="1"                                    # 工作进程数
 TIMEOUT="300"                                  # 超时时间
 
 

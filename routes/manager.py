@@ -26,7 +26,7 @@ def list_models():
     try:
         models = sm.list_models(username)
         return json_response(code=0, msg='获取模型列表成功', data={
-            'models': [m['relpath'] for m in models]
+            'models': [{ 'path': m['relpath'], 'url': m['url']} for m in models]
             }
         )  
 

@@ -41,6 +41,7 @@
 
 			.cube-wrapper {
 				transform-style: preserve-3d;
+				z-index: 1;
 			}
 
 			.cube {
@@ -122,7 +123,6 @@
 				right: 0;
 				left: 0;
 				bottom: 0;
-				z-index: 2;
 				height: 100%;
 				width: 100%;
 				align-items: center;
@@ -133,6 +133,23 @@
 				font-size: large;
 				color: whitesmoke;
 				pointer-events: none;
+			}
+
+			.scene {
+				/* 新增：3D场景容器z-index低于message */
+				z-index: 1;
+				/* 保留3D渲染 */
+				transform-style: preserve-3d;
+			}
+			#message {
+				font-weight: bold;
+				font-size: large;
+				color: whitesmoke;
+				pointer-events: none;
+				/* 核心修复1：提高z-index，高于3D容器 */
+				z-index: 10;
+				/* 核心修复2：脱离3D渲染上下文，避免被3D变换影响 */
+				transform: translateZ(0);
 			}
 
 			details {
@@ -439,16 +456,19 @@
 						}
 
 						// 6. 合并所有分块为完整的Blob（保持原文件MIME类型）
-						const modelData = new Blob(chunks, {
-							type: response.headers.get('Content-Type') || 'application/octet-stream'
+						const totalLen = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+						const merged = new Uint8Array(totalLen);
+						let offset = 0;
+						chunks.forEach(chunk => {
+							merged.set(chunk, offset);
+							offset += chunk.length;
 						});
-
+						const fileData = merged.buffer; // 最终是 ArrayBuffer
 
 						// 读取二进制数据并缓存
-						await ModelCache.saveModel(modelFileName, modelData);
+						await ModelCache.saveModel(modelFileName, fileData);
 
-
-						window.loadModelByData(modelData); 
+						window.loadModelByData(fileData); 
 
 
 					} catch (error) {

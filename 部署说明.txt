@@ -1,0 +1,33 @@
+一. 业务服务器部署
+1、下载仓库代码：git clone https://github.com/fzg1004/QS_3D_ALBUM
+2、进入工程目录安装： pip install -r requirements_little.txt
+3、安装nginx，将nginx.conf放到nginx的conf目录下，并启动nginx(SSL证书也要放在响应的目录)
+4、启动服务, 进入工程目录输入 ./startup_business.sh start
+
+二. GPU服务器部署
+1、下载仓库代码：git clone https://github.com/fzg1004/QS_3D_ALBUM
+2、进入工程目录安装： pip install -r requirements.txt
+
+3、下载仓库https://github.com/apple/ml-sharp
+4、安装git说明安装ml-sharp（使用conda虚拟环境）
+5、进入工程目录修改config.py文件
+ # ==================== Conda 环境基础配置 ====================
+    # Conda根路径（可通过 `conda info --base` 命令获取）
+    #CONDA_BASE = Path("/usr/local/anaconda3")  # 替换为你的conda根目录
+   
+
+    # ==================== 高斯泼溅项目配置 ====================
+    # 高斯泼溅项目仓库路径
+    #GAUSSIAN_REPO_PATH = Path("/home/fzg25/project/ml-sharp") # 替换为你的conda根目录
+    #虚拟环境名
+    GAUSSIAN_ENV = "sharp" # 替换为你的虚拟环境名
+
+6.配置好后启动服务：./startup_gpu.sh start
+
+
+
+三、微信小程序配置
+在小程序管理后台的开发管理中设置
+request合法域名	        https://jumeijiacn.com      #替换成你自己的域名
+uploadFile合法域名	    https://jumeijiacn.com      #替换成你自己的域名
+downloadFile合法域名	https://jumeijiacn.com      #替换成你自己的域名

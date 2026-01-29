@@ -1,3 +1,4 @@
+import datetime
 import mimetypes
 from flask import Flask, logging
 from flask_cors import CORS
@@ -91,16 +92,14 @@ def main():
     print(f"静态文件目录：{app.config['STATIC_DIR']}")
     print(f"模板文件目录：{app.config['TEMPLATES_DIR']}")
     print("=" * 50)
+   
+ 
+    print(current_time)  # 输出：2023-11-14 20:00:00
     
-    '''
-    import jwt
-    print(f"Module: {jwt}")
-    print(f"Module file: {jwt.__file__}")
-    print(f"Attributes: {dir(jwt)}")
-    '''
+   
     # 启动Flask服务
     #app.run(host='0.0.0.0', port=Config.PORT, debug=Config.DEBUG, ssl_context=(Config.SSL_CERT_FILE, Config.SSL_KEY_FILE))
-    app.run(host=Config.HOST, port=Config.PORT, debug=Config.DEBUG)
+    #app.run(host=Config.HOST, port=Config.PORT, debug=Config.DEBUG)
     
     
 

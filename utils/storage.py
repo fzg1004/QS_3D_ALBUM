@@ -1,7 +1,8 @@
 import os
 import xml.etree.ElementTree as ET
 from werkzeug.utils import secure_filename
-from config import Config
+from datetime import datetime
+
 
 class StorageManager:
     """Manage per-user storage layout under DATA_DIR.
@@ -53,7 +54,8 @@ class StorageManager:
                 path = m.get('path')
                 name = m.get('name') or os.path.basename(path)
                 url = m.get('url')
-                models.append({'relpath': path, 'name': name, 'url': url})
+                time = m.get('time')  # 新记录有值，旧记录为None
+                models.append({'relpath': path, 'name': name, 'url': url, 'time': time})
         except ET.ParseError:
             return []
         return models
@@ -73,6 +75,10 @@ class StorageManager:
         
         #增加一个下载地址
         el.set('url', model_url)
+        
+        #增加创建时间 
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        el.set('time', current_time)
         
         if display_name:
             el.set('name', display_name)

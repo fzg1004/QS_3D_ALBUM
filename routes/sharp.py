@@ -132,7 +132,7 @@ def upload_image():
         #从状态字典中获取任务结果
         task = sharp_tasks.get(task_id)
         if not task:
-            return json_response(code=405, msg='任务不存在'), 404
+            return json_response(code=405, msg='任务不存在')
     
         result = task.get('result')
         return json_response(code=0, msg='上传成功', data={'taskId': task_id, "result": result})
@@ -262,7 +262,7 @@ def _run_sharp_task(task_id, data_dir,image_path, username, rel_folder):
 def sharp_status(task_id):
     task = sharp_tasks.get(task_id)
     if not task:
-        return json_response(code=405, msg='任务不存在'), 404
+        return json_response(code=405, msg='任务不存在')
     
     task_status = task.get('status')
     if task_status in ['completed', 'failed']:
